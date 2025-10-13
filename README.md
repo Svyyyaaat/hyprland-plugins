@@ -1,6 +1,6 @@
 # hyprwinwrap
 
-A clone of xwinwrap for Hyprland - allows you to put any app as a wallpaper.
+A fork of hyprwinwrap which allows to toggle interactivity of the wallpaper app using "hyprctl dispatch hyprwinwrap_toggle"
 
 # Install
 
@@ -81,6 +81,10 @@ exec-once = hyprctl plugin load "$HYPR_PLUGIN_DIR/lib/libhyprwinwrap.so"
 
 See the [hyprwinwrap README](hyprwinwrap/README.md) for configuration options.
 
-# Contributing
+To toggle interactivity:
+```bash
+hyprctl dispatch hyprwinwrap_toggle" 
+```
+Set "new_optimizations" to false in hyprland.conf blur settings if you want tiled windows to render the app instead of your wallpaper.
 
-Feel free to open issues and PRs with fixes and improvements.
+If you are using waybar and it gets covered by the app, set "layer" to "top".
