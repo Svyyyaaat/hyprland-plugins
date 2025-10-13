@@ -214,11 +214,6 @@ void dispatchToggleInteractivity(std::string args) {
             Debug::log(LOG, "[hyprwinwrap] Toggled window {} to {}", bgw, it->second ? "interactable" : "non-interactable");
         }
     }
-
-    if (toggledCount > 0) {
-        const std::string msg = "[hyprwinwrap] Toggled " + std::to_string(toggledCount) + " window" + (toggledCount > 1 ? "s" : "") + " interactivity";
-        HyprlandAPI::addNotification(PHANDLE, msg, CHyprColor{0.2, 1.0, 0.2, 1.0}, 3000);
-    }
 }
 
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {

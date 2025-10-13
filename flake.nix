@@ -1,5 +1,5 @@
 {
-  description = "Official Hyprland Plugins";
+  description = "hyprwinwrap - A clone of xwinwrap for Hyprland";
 
   inputs = {
     hyprland.url = "github:hyprwm/Hyprland";
@@ -21,45 +21,25 @@
       import nixpkgs {
         localSystem.system = system;
         overlays = [
-          self.overlays.hyprland-plugins
+          self.overlays.default
           hyprland.overlays.hyprland-packages
         ];
       });
   in {
     packages = eachSystem (system: {
-      inherit
-        (pkgsFor.${system}.hyprlandPlugins)
-        borders-plus-plus
-        csgo-vulkan-fix
-        hyprbars
-        hyprexpo
-        hyprfocus
-        hyprscrolling
-        hyprtrails
-        hyprwinwrap
-        xtra-dispatchers
-        ;
+      hyprwinwrap = pkgsFor.${system}.hyprlandPlugins.hyprwinwrap;
+      default = self.packages.${system}.hyprwinwrap;
     });
 
     overlays = {
-      default = self.overlays.hyprland-plugins;
-
-      hyprland-plugins = final: prev: let
+      default = final: prev: let
         inherit (final) callPackage;
       in {
         hyprlandPlugins =
           (prev.hyprlandPlugins
             or {})
           // {
-            borders-plus-plus = callPackage ./borders-plus-plus {};
-            csgo-vulkan-fix = callPackage ./csgo-vulkan-fix {};
-            hyprbars = callPackage ./hyprbars {};
-            hyprexpo = callPackage ./hyprexpo {};
-            hyprfocus = callPackage ./hyprfocus {};
-            hyprscrolling = callPackage ./hyprscrolling {};
-            hyprtrails = callPackage ./hyprtrails {};
             hyprwinwrap = callPackage ./hyprwinwrap {};
-            xtra-dispatchers = callPackage ./xtra-dispatchers {};
           };
       };
     };
@@ -69,7 +49,7 @@
     devShells = eachSystem (system:
       with pkgsFor.${system}; {
         default = mkShell.override {stdenv = gcc14Stdenv;} {
-          name = "hyprland-plugins";
+          name = "hyprwinwrap";
           buildInputs = [hyprland.packages.${system}.hyprland];
           inputsFrom = [hyprland.packages.${system}.hyprland];
         };
