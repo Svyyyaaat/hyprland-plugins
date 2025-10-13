@@ -12,7 +12,7 @@ hyprpm update
 ```
 Then add this repository:
 ```bash
-hyprpm add <your-repo-url>
+hyprpm add https://github.com/Svyyyaaat/hyprland-plugins
 ```
 then enable the plugin with
 ```bash
@@ -32,7 +32,7 @@ inputs = {
   # ...
   hyprland.url = "github:hyprwm/Hyprland";
   hyprwinwrap = {
-    url = "github:<your-username>/<your-repo>";
+    url = "https://github.com/Svyyyaaat/hyprland-plugins";
     inputs.hyprland.follows = "hyprland";
   };
 
