@@ -139,6 +139,9 @@ void onRenderStage(eRenderStage stage) {
         if (!bgw)
             continue;
 
+        // Always enforce pinned state - dispatchers like movetoworkspace can unset it
+        bgw->m_pinned = true;
+
         // If the bg window was moved to a different monitor (e.g. by movetoworkspace),
         // force it back to its original monitor and position.
         auto placementIt = bgWindowPlacements.find(bgw);
@@ -146,11 +149,11 @@ void onRenderStage(eRenderStage stage) {
             auto origMon = placementIt->second.origMonitor.lock();
             if (origMon && bgw->m_monitor.lock() != origMon) {
                 bgw->m_monitor = placementIt->second.origMonitor;
+                bgw->m_workspace = origMon->m_activeWorkspace;
                 bgw->m_realPosition->setValueAndWarp(placementIt->second.origPosition);
                 bgw->m_realSize->setValueAndWarp(placementIt->second.origSize);
                 bgw->m_position = placementIt->second.origPosition;
                 bgw->m_size = placementIt->second.origSize;
-                bgw->m_pinned = true;
                 bgw->m_hidden = true;
                 g_pInputManager->refocus();
             }
