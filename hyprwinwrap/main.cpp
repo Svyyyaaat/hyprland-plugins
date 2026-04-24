@@ -37,6 +37,13 @@ typedef void (*origCommit)(void* owner, void* data);
 std::vector<PHLWINDOWREF>  bgWindows;
 std::map<PHLWINDOW, bool>  interactableStates;
 
+struct BgWindowPlacement {
+    PHLMONITORREF origMonitor;
+    Vector2D      origPosition;
+    Vector2D      origSize;
+};
+std::map<PHLWINDOW, BgWindowPlacement> bgWindowPlacements;
+
 void                       onNewWindow(PHLWINDOW pWindow) {
     static auto* const PCLASS = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:class")->getDataStaticPtr();
     static auto* const PTITLE = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:title")->getDataStaticPtr();
@@ -106,6 +113,7 @@ void                       onNewWindow(PHLWINDOW pWindow) {
     pWindow->sendWindowSize(true);
 
     bgWindows.push_back(pWindow);
+    bgWindowPlacements[pWindow] = {pWindow->m_monitor, newPos, newSize};
     interactableStates[pWindow] = false;
     pWindow->m_hidden = true;
 
@@ -115,6 +123,7 @@ void                       onNewWindow(PHLWINDOW pWindow) {
 
 void onCloseWindow(PHLWINDOW pWindow) {
     std::erase_if(bgWindows, [pWindow](const auto& ref) { return ref.expired() || ref.lock() == pWindow; });
+    bgWindowPlacements.erase(pWindow);
     interactableStates.erase(pWindow);
 
     Log::logger->log(Log::DEBUG, "[hyprwinwrap] closed window {}", pWindow);
@@ -126,6 +135,26 @@ void onRenderStage(eRenderStage stage) {
 
     for (auto& bg : bgWindows) {
         const auto bgw = bg.lock();
+
+        if (!bgw)
+            continue;
+
+        // If the bg window was moved to a different monitor (e.g. by movetoworkspace),
+        // force it back to its original monitor and position.
+        auto placementIt = bgWindowPlacements.find(bgw);
+        if (placementIt != bgWindowPlacements.end()) {
+            auto origMon = placementIt->second.origMonitor.lock();
+            if (origMon && bgw->m_monitor.lock() != origMon) {
+                bgw->m_monitor = placementIt->second.origMonitor;
+                bgw->m_realPosition->setValueAndWarp(placementIt->second.origPosition);
+                bgw->m_realSize->setValueAndWarp(placementIt->second.origSize);
+                bgw->m_position = placementIt->second.origPosition;
+                bgw->m_size = placementIt->second.origSize;
+                bgw->m_pinned = true;
+                bgw->m_hidden = true;
+                g_pInputManager->refocus();
+            }
+        }
 
         if (bgw->m_monitor != g_pHyprOpenGL->m_renderData.pMonitor)
             continue;
