@@ -142,19 +142,20 @@ void onRenderStage(eRenderStage stage) {
         // Always enforce pinned state - dispatchers like movetoworkspace can unset it
         bgw->m_pinned = true;
 
-        // If the bg window was moved to a different monitor (e.g. by movetoworkspace),
-        // silently snap it back. Avoid refocus/workspace changes here to prevent
-        // feedback loops with Hyprland's internal state management.
+        // Safety net: if the bg window was moved to a different monitor, snap it back.
+        // With nofocus this should rarely trigger, but handles edge cases.
         auto placementIt = bgWindowPlacements.find(bgw);
         if (placementIt != bgWindowPlacements.end()) {
             auto origMon = placementIt->second.origMonitor.lock();
             if (origMon && bgw->m_monitor.lock() != origMon) {
                 bgw->m_monitor = placementIt->second.origMonitor;
+                bgw->m_workspace = origMon->m_activeWorkspace;
                 bgw->m_realPosition->setValueAndWarp(placementIt->second.origPosition);
                 bgw->m_realSize->setValueAndWarp(placementIt->second.origSize);
                 bgw->m_position = placementIt->second.origPosition;
                 bgw->m_size = placementIt->second.origSize;
                 bgw->m_hidden = true;
+                bgw->sendWindowSize(true);
             }
         }
 
@@ -218,6 +219,7 @@ void onConfigReloaded() {
     if (!classRule.empty()) {
         g_pConfigManager->parseKeyword("windowrulev2", std::string{"float, class:^("} + classRule + ")$");
         g_pConfigManager->parseKeyword("windowrulev2", std::string{"size 100\% 100\%, class:^("} + classRule + ")$");
+        g_pConfigManager->parseKeyword("windowrulev2", std::string{"nofocus, class:^("} + classRule + ")$");
     }
 
     static auto* const PTITLE = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:title")->getDataStaticPtr();
@@ -225,6 +227,7 @@ void onConfigReloaded() {
     if (!titleRule.empty()) {
         g_pConfigManager->parseKeyword("windowrulev2", std::string{"float, title:^("} + titleRule + ")$");
         g_pConfigManager->parseKeyword("windowrulev2", std::string{"size 100\% 100\%, title:^("} + titleRule + ")$");
+        g_pConfigManager->parseKeyword("windowrulev2", std::string{"nofocus, title:^("} + titleRule + ")$");
     }
 }
 
