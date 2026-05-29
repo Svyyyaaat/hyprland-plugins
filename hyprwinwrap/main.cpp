@@ -20,6 +20,7 @@
 #include <hyprland/src/helpers/time/Time.hpp>
 #include <hyprland/src/layout/LayoutManager.hpp>
 #include <hyprland/src/event/EventBus.hpp>
+#include <hyprland/src/desktop/state/FocusState.hpp>
 #undef private
 #undef protected
 
@@ -241,6 +242,8 @@ SDispatchResult dispatchToggleInteractivity(std::string args) {
         return {};
     }
 
+    bool nowInteractable = false;
+
     for (auto& bg : bgWindows) {
         const auto bgw = bg.lock();
         if (!bgw)
@@ -248,12 +251,24 @@ SDispatchResult dispatchToggleInteractivity(std::string args) {
 
         auto it = interactableStates.find(bgw);
         if (it != interactableStates.end()) {
-            it->second = !it->second;
-            bgw->m_hidden = !it->second;
+            it->second      = !it->second;
+            bgw->m_hidden   = !it->second;
+
+            // Bringing it forward isn't enough to interact with it - it also needs
+            // keyboard focus. The window carries a no_initial_focus rule (so it
+            // doesn't steal focus on open), which still allows focusing it now.
+            if (it->second) {
+                Desktop::focusState()->fullWindowFocus(bgw, Desktop::FOCUS_REASON_KEYBIND);
+                nowInteractable = true;
+            }
 
             Log::logger->log(Log::DEBUG, "[hyprwinwrap] Toggled window {} to {}", bgw, it->second ? "interactable" : "non-interactable");
         }
     }
+
+    // Sending it back to the background: hand focus to a real window again.
+    if (!nowInteractable)
+        g_pInputManager->refocus();
 
     return {};
 }
