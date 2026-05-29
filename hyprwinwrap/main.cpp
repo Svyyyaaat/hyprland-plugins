@@ -14,6 +14,7 @@
 #include <hyprland/src/desktop/view/Window.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
 #include <hyprland/src/config/legacy/ConfigManager.hpp>
+#include <hyprland/src/config/values/types/StringValue.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
@@ -45,19 +46,16 @@ struct BgWindowPlacement {
 };
 std::map<PHLWINDOW, BgWindowPlacement> bgWindowPlacements;
 
+// 0.55: the deprecated addConfigValue/getConfigValue path no longer registers
+// plugin values (getConfigValue returns null -> crash). Register via
+// addConfigValueV2 and read back through these handles instead.
+SP<Config::Values::CStringValue> g_classValue, g_titleValue, g_sizeXValue, g_sizeYValue, g_posXValue, g_posYValue;
+
 void                       onNewWindow(PHLWINDOW pWindow) {
-    static auto* const PCLASS = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:class")->getDataStaticPtr();
-    static auto* const PTITLE = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:title")->getDataStaticPtr();
+    const std::string classRule = g_classValue->value();
+    const std::string titleRule = g_titleValue->value();
 
-    static auto* const PSIZEX = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:size_x")->getDataStaticPtr();
-    static auto* const PSIZEY = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:size_y")->getDataStaticPtr();
-    static auto* const PPOSX  = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:pos_x")->getDataStaticPtr();
-    static auto* const PPOSY  = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:pos_y")->getDataStaticPtr();
-
-    const std::string  classRule(*PCLASS);
-    const std::string  titleRule(*PTITLE);
-
-    const bool         classMatches = !classRule.empty() && pWindow->m_initialClass == classRule;
+    const bool        classMatches = !classRule.empty() && pWindow->m_initialClass == classRule;
     const bool         titleMatches = !titleRule.empty() && pWindow->m_title == titleRule;
 
     if (!classMatches && !titleMatches)
@@ -73,16 +71,16 @@ void                       onNewWindow(PHLWINDOW pWindow) {
     float sx = 100.f, sy = 100.f, px = 0.f, py = 0.f;
 
     try {
-        sx = std::stof(*PSIZEX);
+        sx = std::stof(g_sizeXValue->value());
     } catch (...) {}
     try {
-        sy = std::stof(*PSIZEY);
+        sy = std::stof(g_sizeYValue->value());
     } catch (...) {}
     try {
-        px = std::stof(*PPOSX);
+        px = std::stof(g_posXValue->value());
     } catch (...) {}
     try {
-        py = std::stof(*PPOSY);
+        py = std::stof(g_posYValue->value());
     } catch (...) {}
 
     sx = std::clamp(sx, 1.f, 100.f);
@@ -222,16 +220,14 @@ void onConfigReloaded() {
     if (!legacyMgr)
         return;
 
-    static auto* const PCLASS = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:class")->getDataStaticPtr();
-    const std::string  classRule(*PCLASS);
+    const std::string classRule = g_classValue->value();
     if (!classRule.empty()) {
         legacyMgr->parseKeyword("windowrulev2", std::string{"float, class:^("} + classRule + ")$");
         legacyMgr->parseKeyword("windowrulev2", std::string{"size 100\% 100\%, class:^("} + classRule + ")$");
         legacyMgr->parseKeyword("windowrulev2", std::string{"nofocus, class:^("} + classRule + ")$");
     }
 
-    static auto* const PTITLE = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:title")->getDataStaticPtr();
-    const std::string  titleRule(*PTITLE);
+    const std::string titleRule = g_titleValue->value();
     if (!titleRule.empty()) {
         legacyMgr->parseKeyword("windowrulev2", std::string{"float, title:^("} + titleRule + ")$");
         legacyMgr->parseKeyword("windowrulev2", std::string{"size 100\% 100\%, title:^("} + titleRule + ")$");
@@ -295,13 +291,15 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     if (!hkResult)
         throw std::runtime_error("hyprwinwrap: hooks failed");
 
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprwinwrap:class", Hyprlang::STRING{"kitty-bg"});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprwinwrap:title", Hyprlang::STRING{""});
+    g_classValue = makeShared<Config::Values::CStringValue>("plugin:hyprwinwrap:class", "Window class to match for the background window", "kitty-bg");
+    g_titleValue = makeShared<Config::Values::CStringValue>("plugin:hyprwinwrap:title", "Window title to match for the background window", "");
+    g_sizeXValue = makeShared<Config::Values::CStringValue>("plugin:hyprwinwrap:size_x", "Width as a percentage of the monitor", "100");
+    g_sizeYValue = makeShared<Config::Values::CStringValue>("plugin:hyprwinwrap:size_y", "Height as a percentage of the monitor", "100");
+    g_posXValue  = makeShared<Config::Values::CStringValue>("plugin:hyprwinwrap:pos_x", "X offset as a percentage of the monitor", "0");
+    g_posYValue  = makeShared<Config::Values::CStringValue>("plugin:hyprwinwrap:pos_y", "Y offset as a percentage of the monitor", "0");
 
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprwinwrap:size_x", Hyprlang::STRING{"100"});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprwinwrap:size_y", Hyprlang::STRING{"100"});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprwinwrap:pos_x", Hyprlang::STRING{"0"});
-    HyprlandAPI::addConfigValue(PHANDLE, "plugin:hyprwinwrap:pos_y", Hyprlang::STRING{"0"});
+    for (const auto& v : {g_classValue, g_titleValue, g_sizeXValue, g_sizeYValue, g_posXValue, g_posYValue})
+        HyprlandAPI::addConfigValueV2(PHANDLE, v);
 
     HyprlandAPI::addNotification(PHANDLE, "[hyprwinwrap] Initialized successfully!", CHyprColor{0.2, 1.0, 0.2, 1.0}, 5000);
 
