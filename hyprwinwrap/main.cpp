@@ -13,6 +13,7 @@
 #include <hyprland/src/Compositor.hpp>
 #include <hyprland/src/desktop/view/Window.hpp>
 #include <hyprland/src/config/ConfigManager.hpp>
+#include <hyprland/src/config/legacy/ConfigManager.hpp>
 #include <hyprland/src/render/Renderer.hpp>
 #include <hyprland/src/managers/input/InputManager.hpp>
 #include <hyprland/src/helpers/time/Time.hpp>
@@ -159,13 +160,13 @@ void onRenderStage(eRenderStage stage) {
             }
         }
 
-        if (bgw->m_monitor != g_pHyprOpenGL->m_renderData.pMonitor)
+        if (bgw->m_monitor != g_pHyprRenderer->m_renderData.pMonitor)
             continue;
 
         // cant use setHidden cuz that sends suspended and shit too that would be laggy
         bgw->m_hidden = false;
 
-        g_pHyprRenderer->renderWindow(bgw, g_pHyprOpenGL->m_renderData.pMonitor.lock(), Time::steadyNow(), false, RENDER_PASS_ALL, false, true);
+        g_pHyprRenderer->renderWindow(bgw, g_pHyprRenderer->m_renderData.pMonitor.lock(), Time::steadyNow(), false, Render::RENDER_PASS_ALL, false, true);
 
         // Only hide if not interactable
         if (interactableStates.find(bgw) != interactableStates.end() && !interactableStates[bgw])
@@ -186,7 +187,7 @@ void onCommitSubsurface(Desktop::View::CSubsurface* thisptr) {
 
     ((origCommitSubsurface)subsurfaceHook->m_original)(thisptr);
     if (const auto MON = PWINDOW->m_monitor.lock(); MON)
-        g_pHyprOpenGL->markBlurDirtyForMonitor(MON);
+        MON->m_blurFBDirty = true;
 
     // Only hide if not interactable
     if (interactableStates.find(PWINDOW) != interactableStates.end() && !interactableStates[PWINDOW])
@@ -206,7 +207,7 @@ void onCommit(void* owner, void* data) {
 
     ((origCommit)commitHook->m_original)(owner, data);
     if (const auto MON = PWINDOW->m_monitor.lock(); MON)
-        g_pHyprOpenGL->markBlurDirtyForMonitor(MON);
+        MON->m_blurFBDirty = true;
 
     // Only hide if not interactable
     if (interactableStates.find(PWINDOW) != interactableStates.end() && !interactableStates[PWINDOW])
@@ -214,20 +215,27 @@ void onCommit(void* owner, void* data) {
 }
 
 void onConfigReloaded() {
+    // 0.55 removed the global g_pConfigManager; keyword parsing now lives on the
+    // legacy config backend, reachable through Config::mgr(). Lua configs don't
+    // expose parseKeyword, so bail out gracefully if that's what's in use.
+    auto* const legacyMgr = dynamic_cast<Config::Legacy::CConfigManager*>(Config::mgr().get());
+    if (!legacyMgr)
+        return;
+
     static auto* const PCLASS = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:class")->getDataStaticPtr();
     const std::string  classRule(*PCLASS);
     if (!classRule.empty()) {
-        g_pConfigManager->parseKeyword("windowrulev2", std::string{"float, class:^("} + classRule + ")$");
-        g_pConfigManager->parseKeyword("windowrulev2", std::string{"size 100\% 100\%, class:^("} + classRule + ")$");
-        g_pConfigManager->parseKeyword("windowrulev2", std::string{"nofocus, class:^("} + classRule + ")$");
+        legacyMgr->parseKeyword("windowrulev2", std::string{"float, class:^("} + classRule + ")$");
+        legacyMgr->parseKeyword("windowrulev2", std::string{"size 100\% 100\%, class:^("} + classRule + ")$");
+        legacyMgr->parseKeyword("windowrulev2", std::string{"nofocus, class:^("} + classRule + ")$");
     }
 
     static auto* const PTITLE = (Hyprlang::STRING const*)HyprlandAPI::getConfigValue(PHANDLE, "plugin:hyprwinwrap:title")->getDataStaticPtr();
     const std::string  titleRule(*PTITLE);
     if (!titleRule.empty()) {
-        g_pConfigManager->parseKeyword("windowrulev2", std::string{"float, title:^("} + titleRule + ")$");
-        g_pConfigManager->parseKeyword("windowrulev2", std::string{"size 100\% 100\%, title:^("} + titleRule + ")$");
-        g_pConfigManager->parseKeyword("windowrulev2", std::string{"nofocus, title:^("} + titleRule + ")$");
+        legacyMgr->parseKeyword("windowrulev2", std::string{"float, title:^("} + titleRule + ")$");
+        legacyMgr->parseKeyword("windowrulev2", std::string{"size 100\% 100\%, title:^("} + titleRule + ")$");
+        legacyMgr->parseKeyword("windowrulev2", std::string{"nofocus, title:^("} + titleRule + ")$");
     }
 }
 
