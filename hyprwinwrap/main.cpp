@@ -258,6 +258,14 @@ SDispatchResult dispatchToggleInteractivity(std::string args) {
     return {};
 }
 
+// Lua-config entry point. Plugin dispatchers registered via addDispatcherV2 are
+// not reachable from the 0.55 Lua config, so also expose the toggle as
+// hl.plugin.hyprwinwrap.toggle(). Harmless no-op on legacy configs.
+int luaToggleInteractivity(lua_State* L) {
+    dispatchToggleInteractivity("");
+    return 0;
+}
+
 APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     PHANDLE = handle;
 
@@ -274,6 +282,7 @@ APICALL EXPORT PLUGIN_DESCRIPTION_INFO PLUGIN_INIT(HANDLE handle) {
     static auto P4 = Event::bus()->m_events.config.reloaded.listen([&] { onConfigReloaded(); });
 
     HyprlandAPI::addDispatcherV2(PHANDLE, "hyprwinwrap_toggle", dispatchToggleInteractivity);
+    HyprlandAPI::addLuaFunction(PHANDLE, "hyprwinwrap", "toggle", luaToggleInteractivity);
 
     auto fns = HyprlandAPI::findFunctionsByName(PHANDLE, "_ZN7Desktop4View11CSubsurface8onCommitEv");
     if (fns.size() < 1)
