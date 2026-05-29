@@ -142,19 +142,32 @@ void onRenderStage(eRenderStage stage) {
         // Always enforce pinned state - dispatchers like movetoworkspace can unset it
         bgw->m_pinned = true;
 
-        // Safety net: if the bg window was moved to a different monitor, snap it back.
-        // With nofocus this should rarely trigger, but handles edge cases.
+        // Re-assert the stored full-monitor placement whenever it drifts. After we
+        // position the window, Hyprland re-applies the monitor's reserved area
+        // (waybar) and gaps_out, which leaves a seam at the top/left and makes the
+        // window overflow onto adjacent monitors. Snapping it back here keeps it
+        // covering the whole monitor - effectively an automatic win+V.
         auto placementIt = bgWindowPlacements.find(bgw);
         if (placementIt != bgWindowPlacements.end()) {
-            auto origMon = placementIt->second.origMonitor.lock();
+            const auto& pl      = placementIt->second;
+            const auto  origMon = pl.origMonitor.lock();
+
+            // monitor drift
             if (origMon && bgw->m_monitor.lock() != origMon) {
-                bgw->m_monitor = placementIt->second.origMonitor;
+                bgw->m_monitor   = pl.origMonitor;
                 bgw->m_workspace = origMon->m_activeWorkspace;
-                bgw->m_realPosition->setValueAndWarp(placementIt->second.origPosition);
-                bgw->m_realSize->setValueAndWarp(placementIt->second.origSize);
-                bgw->m_position = placementIt->second.origPosition;
-                bgw->m_size = placementIt->second.origSize;
-                bgw->m_hidden = true;
+            }
+
+            // position drift (compositor-side, no client resize needed)
+            if (bgw->m_realPosition->goal() != pl.origPosition) {
+                bgw->m_realPosition->setValueAndWarp(pl.origPosition);
+                bgw->m_position = pl.origPosition;
+            }
+
+            // size drift (notify the client so it actually fills the monitor)
+            if (bgw->m_realSize->goal() != pl.origSize) {
+                bgw->m_realSize->setValueAndWarp(pl.origSize);
+                bgw->m_size = pl.origSize;
                 bgw->sendWindowSize(true);
             }
         }
